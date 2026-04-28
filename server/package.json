@@ -1,0 +1,20 @@
+{
+  "name": "dubclub-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.1",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,10 @@
+node_modules
+server/node_modules
+client/node_modules
+coverage
+dist
+server/dist
+client/dist
+.DS_Store
+npm-debug.log*
+.vite

@@ -1,0 +1,259 @@
+:root {
+  font-family: 'Inter', 'Avenir Next', 'Segoe UI', sans-serif;
+  color: #e5eef8;
+  background: radial-gradient(circle at 0% 0%, #1d2b44 0%, #0b0f1e 45%, #0a0f18 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: #e2e8f0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  background: rgba(16, 27, 47, 0.85);
+  border: 1px solid #263654;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+h1,
+h2 {
+  margin: 0.2rem 0;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  letter-spacing: 0.12rem;
+  color: #90a3c7;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.status-pill-wrap {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  border: 1px solid #3a4f78;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: #101e32;
+}
+
+.metrics-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.metric-card,
+.card {
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid #2c3f61;
+  background: linear-gradient(170deg, rgba(21, 37, 59, 0.92), rgba(12, 22, 40, 0.95));
+}
+
+.metric-card p {
+  color: #9fb0ce;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.metric-card strong {
+  font-size: 1.4rem;
+}
+
+.two-column {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #8ea2c2;
+}
+
+select {
+  width: 100%;
+  border: 1px solid #324569;
+  border-radius: 8px;
+  padding: 0.45rem;
+  background: #0b1626;
+  color: #e8eef8;
+  margin-bottom: 0.8rem;
+}
+
+button {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border: none;
+  color: white;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover {
+  filter: brightness(1.07);
+}
+
+.button-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.fans-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.fan-card {
+  border: 1px solid #304566;
+  border-radius: 10px;
+  padding: 0.8rem;
+  background: rgba(8, 17, 32, 0.7);
+}
+
+.fan-card header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.avatar {
+  background: #324c77;
+  border-radius: 999px;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+}
+
+.dot {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  display: inline-flex;
+  margin-top: 0.5rem;
+}
+
+.dot.online {
+  background: #14532d;
+  color: #86efac;
+}
+.dot.connecting {
+  background: #4b3a14;
+  color: #fef08a;
+}
+.dot.offline {
+  background: #6b2020;
+  color: #fecaca;
+}
+
+.inbox-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.inbox-item {
+  border: 1px solid #2c466f;
+  border-radius: 8px;
+  background: #0f1a2d;
+  padding: 0.45rem;
+}
+
+.inbox-item.highlight {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.22);
+}
+
+.muted {
+  color: #8294b7;
+}
+
+.small {
+  font-size: 0.8rem;
+  color: #9eb0cc;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.event-table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  border-bottom: 1px solid #243858;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+th {
+  color: #9fadde;
+}
+
+.log-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.log-item {
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #2a4264;
+  background: #0b1423;
+}
+
+.log-item p {
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .header-card {
+    flex-direction: column;
+  }
+}
