@@ -2,120 +2,170 @@
 
 ## MVP architecture
 
-This MVP keeps one process handling API + WebSocket fanout for local demonstration.
+The MVP keeps one Node process responsible for HTTP + WebSocket fanout.
+
+Capabilities now in this iteration:
 
 - REST endpoint `POST /api/events` publishes capper actions.
-- WS connections are maintained in-memory.
-- Fan-to-capper follows are in-memory maps.
-- Delivery ack updates are recorded for latency metrics.
+- In-memory fan follow map.
+- WebSocket fan connections keyed by `fanId`.
+- Delivery acknowledgements update `event_log` and latency samples.
+- Bounded in-memory event log (`MAX_EVENT_LOG`) used as a replay buffer.
+- Idempotent fan delivery with `(event_id, fan_id)` de-duplication.
+- Last-seen cursor on fan `register` to attempt reconnect replay.
 
-The goal is clarity and a working demo, not full production durability.
+## Production architecture (target)
 
-## Production architecture
+At scale:
 
-Scale version introduces:
-
-1. WebSocket gateway layer for fan sessions.
-2. Message bus for fanout fan signals.
-3. Durable store for relationship data and event history.
-4. Dedicated worker plane for fanout and delivery tracking.
+1. API service validates and persists event metadata.
+2. Event bus fans out normalized payloads.
+3. WebSocket gateway layer subscribes and tracks active sessions.
+4. Fanout worker pool performs targeted delivery.
+5. Delivery states are written to durable storage.
+6. Offline path writes to push queue fallback.
 
 ## WebSocket gateway layer
 
 Gateway responsibilities:
 
 - authenticate fan session
-- maintain heartbeat and reconnection metadata
-- persist session registration in Redis
-- push fan-targeted events from bus subscriptions
+- maintain heartbeat / heartbeat state
+- keep presence in Redis
+- route fanout from bus to local fan channels
+- expose control-room observability stream
 
 ## Event bus path
 
-Capper action path:
-
-1. Control room posts event
-2. API service persists event metadata
-3. Event bus publishes message `{event_id, capper_id, payload}`
-4. Gateways pull/consume and deliver to subscribed fan sessions
-5. Delivery acks stream back for observability
+1. Control room sends event via `POST /api/events`.
+2. API creates event metadata and publishes `{ event_id, capper_id, payload }`.
+3. Fanout workers receive from bus and fan out by follower index shard.
+4. Fan sockets receive targeted events and send ack updates.
+5. Metrics pipeline updates latency and delivery health.
 
 ## Fanout workers
 
-A fanout worker can split by hash shard:
+For high-volume cappers, fan lists are partitioned:
 
-- events for `capper_id` route to shard worker
-- worker reads active fan list for capper
-- worker sends to local fan sessions first, then remote partitions
+- split by capper shard
+- fan session lookup in Redis/local cache
+- avoid single-node hot loops by spreading fan lists
 
 ## Redis presence store
 
-Track socket location and follow index:
+Useful structures:
 
-- `fan:{fan_id}:sessions` -> active gateway + socket ids
-- `capper:{capper_id}:fans` -> fan index for targeted fanout
+- `fan:{fan_id}:sessions` for active websocket sessions
+- `capper:{capper_id}:fans` for follower index
+- `gateway:{node_id}:load` for per-node fanout telemetry
 
 ## Postgres notification durability
 
-Postgres tables:
+Core tables:
 
 - `cappers`
 - `fans`
 - `capper_follows`
 - `notification_events`
-- `notification_delivery_attempts`
+- `notification_deliveries`
 
-Persist every event and attempt so you can recompute exactly-once/at-most-once semantics and recovery behavior.
+Durability goals:
+
+- authoritative event timeline
+- exactly-once/once-delivered semantics at API level
+- replay cursor persistence per fan
+- latency and failure attribution queries
 
 ## Offline push fallback
 
-When fan is offline:
+Current MVP does not persist off-network state.
 
-- store pending events with TTL
-- when fan reconnects, fanout worker replays last events by cursor
-- if mobile app is not connected, route to push provider
+Production fallback:
 
-## Reconnect and replay
+- persist pending delivery attempts for offline fans
+- on reconnection, consume missing events from durable store
+- for disconnected mobile clients, publish push notification and in-app inbox sync
 
-- heartbeat and socket timeout per fan
-- resume token per fan after reconnect
-- replay window based on last acknowledged `event_id`
+## Reconnect and replay (MVP)
+
+MVP behavior:
+
+- fan sends `last_seen_event_id` during `register`
+- server checks replay buffer and re-sends matching events
+- events already acknowledged for that fan are deduped
+- if cursor is too old, server replays best-effort window and may miss earlier data
+
+Limitations:
+
+- replay buffer is memory-only and bounded
+- no per-device cursor persistence across restarts
+
+## Production replay comparison
+
+Production-ready replay would:
+
+- persist fan cursor in Redis/Postgres
+- query missing events by cursor window in durable event table
+- support gap recovery and tombstone/expiry policy
+- separate idempotency keys for at-least-once delivery semantics
 
 ## Hot capper fanout
 
-For high-volume cappers:
+For stars with very large follow lists:
 
-- capper-to-fans index is partitioned and cached
-- avoid fan-by-fan fanout from one node only
-- pre-warm follower lists from write-through cache
+- partition capper follower lists
+- pre-compute fan cohort caches
+- apply batching and adaptive throttling for bursty game-time periods
 
 ## Idempotency
 
-Fan clients and servers use `event_id` for dedupe.
+Current MVP:
+
+- `event_id` is generated per capper action
+- fan-level dedupe map prevents duplicate counting in metrics
+- duplicate ack for same fan/event is ignored
+
+Production extension:
+
+- unique constraint on `(event_id, fan_id)` in delivery table
+- idempotency token on publish API to protect retries from clients
 
 ## Failure modes
 
-- Gateway failure: new connection through another node using Redis presence.
-- Redis event bus partition: fallback to stale follow map only if within replay window.
-- Database outage: buffer writes locally and mark backlog depth.
-- Client drop: heartbeat marks stale sessions, reconnect flow updates session map.
+- gateway restart or socket drop: client reconnect + `last_seen_event_id` replay path
+- duplicated publish path: dedupe by `event_id` at API and consumer edge
+- event bus partition: fallback to health-checked buffer + stale-path handling
+- DB outage: queue write attempts and report lag for remediation
 
 ## Observability
 
 Track:
 
-- queueing delay
-- socket send delay
-- ack delay
-- fanout retry count
 - active sessions by gateway
+- send queue length / fanout p50/p95/p99
+- delivery attempts, successes, retries, failures
+- replay volume and replay misses
+- heartbeat drops and reconnect churn
 
 ## Scaling math
 
-Target from prompt: 100k concurrent connections.
+Target from challenge prompt:
 
-A practical first horizontal shape:
+`20` gateway nodes x `5,000` concurrent sockets = `100,000` concurrent connections
 
-- 20 gateway nodes x 5,000 concurrent sockets = 100,000 sessions
-- each gateway with local memory for active sessions
-- Redis + bus shared across gateways
-- separate worker/service pools for API, persistence, and fanout
+In production this requires:
+
+- stable event bus throughput planning
+- sharded follow index
+- bounded fanout fanout latency
+- per-gateway autoscaling with graceful drain
+
+## Local-to-production mapping checklist
+
+- [x] Targeting correctness and end-to-end observability in demo
+- [x] Idempotent ack handling at fan level
+- [x] Reconnect replay with bounded buffer
+- [ ] Durable fan/offline persistence
+- [ ] Distributed websocket gateway pool
+- [ ] Auth + authorization + moderation controls
+- [ ] Push fallback for mobile/offline channels

@@ -59,6 +59,7 @@ interface ClientConnection {
   role: 'fan' | 'control' | 'unknown'
   fan_id?: string
   fan_name?: string
+  last_seen_event_id?: string
   is_alive: boolean
   last_pong_at: number
 }
@@ -83,7 +84,12 @@ const CAPPERS_BY_ID = new Map(CAPPERS.map((capper) => [capper.id, capper]))
 const FANS: FanSeed[] = [
   { id: 'fan-ava', name: 'Ava A.', avatar: 'AA', followed_cappers: ['capper-sharpside-sam'] },
   { id: 'fan-ben', name: 'Ben B.', avatar: 'BB', followed_cappers: ['capper-courtside-kelly'] },
-  { id: 'fan-cara', name: 'Cara C.', avatar: 'CC', followed_cappers: ['capper-sharpside-sam', 'capper-courtside-kelly'] },
+  {
+    id: 'fan-cara',
+    name: 'Cara C.',
+    avatar: 'CC',
+    followed_cappers: ['capper-sharpside-sam', 'capper-courtside-kelly']
+  },
   { id: 'fan-drew', name: 'Drew D.', avatar: 'DD', followed_cappers: ['capper-sharpside-sam'] },
   { id: 'fan-emma', name: 'Emma E.', avatar: 'EE', followed_cappers: [] },
   { id: 'fan-finn', name: 'Finn F.', avatar: 'FF', followed_cappers: ['capper-courtside-kelly'] }
@@ -97,6 +103,7 @@ const fanConnections = new Map<string, WebSocket>()
 const controlConnections = new Set<WebSocket>()
 const connectionState = new Map<WebSocket, ClientConnection>()
 const pendingAcks = new Map<string, Map<string, number>>()
+const acknowledgedAcks = new Map<string, Set<string>>()
 
 const eventLog: EventLogEntry[] = []
 const latencySamples: number[] = []
@@ -146,6 +153,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
       response.end(JSON.stringify({ error: 'Invalid JSON payload.' }))
       return
     }
+
     const { type, capper_id, payload } = body as {
       type: CapperAction
       capper_id: string
@@ -230,6 +238,9 @@ wss.on('connection', (socket: WebSocket) => {
           context.role = 'fan'
           context.fan_id = fan.id
           context.fan_name = fan.name
+          context.last_seen_event_id =
+            typeof message.last_seen_event_id === 'string' ? message.last_seen_event_id : undefined
+
           fanConnections.get(fan.id)?.close(4002, 'Replacing previous connection')
           fanConnections.set(fan.id, socket)
 
@@ -242,6 +253,8 @@ wss.on('connection', (socket: WebSocket) => {
               cappers: CAPPERS
             }
           })
+
+          replayMissedEventsForFan(fan.id, socket, context.last_seen_event_id)
           broadcastMetrics()
           return
         }
@@ -265,6 +278,10 @@ wss.on('connection', (socket: WebSocket) => {
         if (!context.fan_id || !message.event_id) return
         const fanId = context.fan_id
         const eventId = String(message.event_id)
+        if (isEventAlreadyAcknowledged(eventId, fanId)) {
+          return
+        }
+
         const perEvent = pendingAcks.get(eventId)
         if (!perEvent) return
 
@@ -286,6 +303,8 @@ wss.on('connection', (socket: WebSocket) => {
           }
           eventLog[logIndex].latency_ms = latency
         }
+
+        markAcknowledged(eventId, fanId)
 
         latencySamples.push(latency)
         if (latencySamples.length > MAX_LATENCY_SAMPLES) {
@@ -366,15 +385,17 @@ function createAndBroadcastEvent(
 
   let sentCount = 0
   const pendingForEvent = new Map<string, number>()
+  const alreadyAcked = acknowledgedAcks.get(event.event_id)
 
   for (const fanId of recipients) {
+    if (alreadyAcked?.has(fanId)) {
+      continue
+    }
+
     const socket = fanConnections.get(fanId)
     if (!socket) continue
 
-    send(socket, {
-      type: 'capper_event',
-      payload: event
-    })
+    sendCapperEvent(socket, event)
     pendingForEvent.set(fanId, Date.now())
     sentCount += 1
   }
@@ -391,13 +412,74 @@ function createAndBroadcastEvent(
     pendingAcks.set(logEntry.event_id, pendingForEvent)
   }
 
+  if (!acknowledgedAcks.has(logEntry.event_id)) {
+    acknowledgedAcks.set(logEntry.event_id, new Set())
+  }
+
   eventLog.unshift(logEntry)
   if (eventLog.length > MAX_EVENT_LOG) {
-    eventLog.pop()
+    const removed = eventLog.pop()
+    if (removed) {
+      pendingAcks.delete(removed.event_id)
+      acknowledgedAcks.delete(removed.event_id)
+    }
   }
 
   broadcastControlStream()
   return logEntry
+}
+
+function replayMissedEventsForFan(fanId: string, socket: WebSocket, lastSeenEventId?: string): void {
+  const followedCappers = FAN_FOLLOWS.get(fanId) ?? new Set<string>()
+  if (followedCappers.size === 0 || eventLog.length === 0) {
+    return
+  }
+
+  const orderedEvents = [...eventLog].slice().reverse()
+  let replayStartIndex = 0
+  let truncated = false
+
+  if (lastSeenEventId) {
+    const seenEventIndex = orderedEvents.findIndex((entry) => entry.event_id === lastSeenEventId)
+    if (seenEventIndex >= 0) {
+      replayStartIndex = seenEventIndex + 1
+    } else {
+      truncated = true
+    }
+  }
+
+  const eventsForFan = orderedEvents.slice(replayStartIndex).filter((entry) => {
+    return followedCappers.has(entry.capper_id) && !isEventAlreadyAcknowledged(entry.event_id, fanId)
+  })
+
+  if (eventsForFan.length === 0) {
+    if (truncated) {
+      send(socket, {
+        type: 'control_note',
+        message: 'Reconnect was older than event buffer. Replaying available window only.'
+      })
+    }
+    return
+  }
+
+  for (const event of eventsForFan) {
+    sendCapperEvent(socket, event, { replayed: true })
+    const existing = pendingAcks.get(event.event_id)
+    if (existing) {
+      existing.set(fanId, Date.now())
+    } else {
+      pendingAcks.set(event.event_id, new Map([[fanId, Date.now()]]))
+    }
+  }
+
+  if (truncated) {
+    send(socket, {
+      type: 'control_note',
+      message: 'Reconnect was older than event buffer. Replaying available window only.'
+    })
+  }
+
+  broadcastMetrics()
 }
 
 function broadcastControlStream() {
@@ -441,6 +523,33 @@ function getMetricsSnapshot(): ClientMetrics {
     last_event_type: hasEvent ? hasEvent.type : 'none',
     last_updated_at: new Date().toISOString()
   }
+}
+
+function isEventAlreadyAcknowledged(eventId: string, fanId: string): boolean {
+  return acknowledgedAcks.get(eventId)?.has(fanId) ?? false
+}
+
+function markAcknowledged(eventId: string, fanId: string): void {
+  let fans = acknowledgedAcks.get(eventId)
+  if (!fans) {
+    fans = new Set()
+    acknowledgedAcks.set(eventId, fans)
+  }
+  fans.add(fanId)
+}
+
+function sendCapperEvent(
+  socket: WebSocket,
+  payload: CapperEvent,
+  metadata?: {
+    replayed?: boolean
+  }
+) {
+  send(socket, {
+    type: 'capper_event',
+    payload,
+    replayed: metadata?.replayed ?? false
+  })
 }
 
 function send(socket: WebSocket, payload: unknown) {
