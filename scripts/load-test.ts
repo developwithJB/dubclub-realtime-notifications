@@ -26,6 +26,7 @@ interface FanSeed {
 interface CapperEventPayload {
   event_id: string
   type: CapperAction
+  created_at: string
 }
 
 interface SeedState {
@@ -117,8 +118,8 @@ async function main() {
     .filter((fan) => fan.followed_cappers.includes(capperId))
     .map((fan) => fan.id)
 
-  const recipientsExpected = followerFanIds.filter((fanId) => clients.some((client) => client.fanId === fanId && client.isConnected))
-  const expectedMessages = recipientsExpected.length * LOAD_TEST_EVENT_COUNT
+  const followerClients = clients.filter((client) => followerFanIds.includes(client.fanId) && client.isConnected)
+  const expectedMessages = followerClients.length * LOAD_TEST_EVENT_COUNT
 
   for (let index = 0; index < LOAD_TEST_EVENT_COUNT; index++) {
     const action = AVAILABLE_ACTIONS[index % AVAILABLE_ACTIONS.length]
@@ -157,6 +158,18 @@ async function main() {
   const allLatencies = clients.flatMap((client) => client.latenciesMs).sort((a, b) => a - b)
 
   const totalMessages = clients.reduce((sum, client) => sum + client.receivedMessages, 0)
+  const nonFollowerMessages = clients
+    .filter((client) => !followerFanIds.includes(client.fanId))
+    .reduce((sum, client) => sum + client.receivedMessages, 0)
+
+  if (totalMessages < expectedMessages) {
+    throw new Error(`Load test missed deliveries: expected ${expectedMessages}, received ${totalMessages}`)
+  }
+
+  if (nonFollowerMessages > 0) {
+    throw new Error(`Load test routed ${nonFollowerMessages} message(s) to non-followers.`)
+  }
+
   const avgLatency = allLatencies.length === 0 ? 0 : Math.round(average(allLatencies))
   const p95Latency = allLatencies.length === 0 ? 0 : percentile(allLatencies, 0.95)
   const p99Latency = allLatencies.length === 0 ? 0 : percentile(allLatencies, 0.99)
@@ -168,6 +181,7 @@ async function main() {
   console.log(`failed connections: ${failedConnections}`)
   console.log(`events sent: ${eventsSent}`)
   console.log(`messages received: ${totalMessages}`)
+  console.log(`messages expected: ${expectedMessages}`)
   console.log(`avg latency: ${avgLatency}ms`)
   console.log(`p95 latency: ${p95Latency}ms`)
   console.log(`p99 latency: ${p99Latency}ms`)

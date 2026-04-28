@@ -26,6 +26,15 @@ interface FanSeed {
 interface FanNotificationPayload {
   title: string
   body: string
+  pick_id?: string
+  market?: string
+  line?: string
+  odds?: string
+  confidence?: number
+  status?: 'open' | 'moved' | 'graded' | 'reward'
+  result?: string
+  reward?: string
+  deep_link?: string
 }
 
 interface CapperEvent {
@@ -99,7 +108,7 @@ const FAN_FOLLOWS = new Map<string, Set<string>>(
   FANS.map((fan) => [fan.id, new Set(fan.followed_cappers)])
 )
 
-const fanConnections = new Map<string, WebSocket>()
+const fanConnections = new Map<string, Set<WebSocket>>()
 const controlConnections = new Set<WebSocket>()
 const connectionState = new Map<WebSocket, ClientConnection>()
 const pendingAcks = new Map<string, Map<string, number>>()
@@ -241,8 +250,9 @@ wss.on('connection', (socket: WebSocket) => {
           context.last_seen_event_id =
             typeof message.last_seen_event_id === 'string' ? message.last_seen_event_id : undefined
 
-          fanConnections.get(fan.id)?.close(4002, 'Replacing previous connection')
-          fanConnections.set(fan.id, socket)
+          const existingConnections = fanConnections.get(fan.id) ?? new Set<WebSocket>()
+          existingConnections.add(socket)
+          fanConnections.set(fan.id, existingConnections)
 
           send(socket, {
             type: 'registered',
@@ -337,7 +347,11 @@ wss.on('connection', (socket: WebSocket) => {
   socket.on('close', () => {
     const context = connectionState.get(socket)
     if (context?.role === 'fan' && context.fan_id) {
-      fanConnections.delete(context.fan_id)
+      const fanSockets = fanConnections.get(context.fan_id)
+      fanSockets?.delete(socket)
+      if (fanSockets?.size === 0) {
+        fanConnections.delete(context.fan_id)
+      }
     }
     if (context?.role === 'control') {
       controlConnections.delete(socket)
@@ -381,7 +395,7 @@ function createAndBroadcastEvent(
   const followers = FANS.filter((fan) => (FAN_FOLLOWS.get(fan.id) ?? new Set()).has(capper.id)).map(
     (fan) => fan.id
   )
-  const recipients = followers.filter((fanId) => fanConnections.has(fanId))
+  const recipients = followers.filter((fanId) => (fanConnections.get(fanId)?.size ?? 0) > 0)
 
   let sentCount = 0
   const pendingForEvent = new Map<string, number>()
@@ -392,12 +406,14 @@ function createAndBroadcastEvent(
       continue
     }
 
-    const socket = fanConnections.get(fanId)
-    if (!socket) continue
+    const sockets = fanConnections.get(fanId)
+    if (!sockets || sockets.size === 0) continue
 
-    sendCapperEvent(socket, event)
+    for (const socket of sockets) {
+      sendCapperEvent(socket, event)
+      sentCount += 1
+    }
     pendingForEvent.set(fanId, Date.now())
-    sentCount += 1
   }
 
   notificationsSent += sentCount
@@ -515,7 +531,7 @@ function getMetricsSnapshot(): ClientMetrics {
   const hasEvent = eventLog[0]
 
   return {
-    active_connections: fanConnections.size + controlConnections.size,
+    active_connections: Array.from(fanConnections.values()).reduce((total, sockets) => total + sockets.size, 0) + controlConnections.size,
     notifications_sent: notificationsSent,
     notifications_delivered: notificationsDelivered,
     average_latency_ms: averageLatency,

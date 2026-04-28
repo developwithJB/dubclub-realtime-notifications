@@ -32,6 +32,15 @@ type CapperEvent = {
   payload: {
     title: string
     body: string
+    pick_id?: string
+    market?: string
+    line?: string
+    odds?: string
+    confidence?: number
+    status?: 'open' | 'moved' | 'graded' | 'reward'
+    result?: string
+    reward?: string
+    deep_link?: string
   }
   created_at: string
   sent_at: string
@@ -58,6 +67,7 @@ type FanClientState = {
   status: 'connecting' | 'online' | 'offline'
   inbox: Array<CapperEvent & { receiveLatencyMs: number; seen: boolean }>
   followedCappers: string[]
+  tailedPickIds: string[]
   latestLatencyMs: number | null
   highlightId: string | null
 }
@@ -90,11 +100,25 @@ const ACTION_LABELS: Record<CapperAction, string> = {
 const TEMPLATE_ACTIONS: Record<CapperAction, (capperName: string) => { title: string; body: string }> = {
   new_pick: (name: string) => ({
     title: `${name} posted a live pick`,
-    body: 'Confidence locked: 74% — projected edge remains positive before lock.'
+    body: 'Confidence locked: 74% with a positive expected edge before lock.',
+    pick_id: `pick-${Date.now()}`,
+    market: 'NYK @ BOS - Jalen Brunson points',
+    line: 'Over 27.5',
+    odds: '-112',
+    confidence: 74,
+    status: 'open',
+    deep_link: '/mobile/picks/live-brunson-over'
   }),
   odds_moved: (name: string) => ({
     title: `${name} alerts odds drift`,
-    body: 'Opening line moved 3 points over 60 seconds. Re-calc your stake sizing now.'
+    body: 'Opening line moved 3 points over 60 seconds. Re-calc your stake sizing now.',
+    pick_id: 'pick-line-watch',
+    market: 'LAD @ CHC - first five innings total',
+    line: 'Under 4.5',
+    odds: '+102 -> -118',
+    confidence: 68,
+    status: 'moved',
+    deep_link: '/mobile/picks/line-watch'
   }),
   game_starting_soon: (name: string) => ({
     title: `Game starting soon — ${name} watch`,
@@ -102,11 +126,21 @@ const TEMPLATE_ACTIONS: Record<CapperAction, (capperName: string) => { title: st
   }),
   result_posted: (name: string) => ({
     title: `${name} posted results`,
-    body: 'Result posted for the latest game. Review scoreboard breakdown and grading.'
+    body: 'Result posted for the latest game. Review scoreboard breakdown and grading.',
+    pick_id: 'pick-result-recap',
+    market: 'BOS moneyline',
+    line: 'Closed -135',
+    odds: '-122',
+    status: 'graded',
+    result: 'Won by 8. ROI updated in fan ledger.',
+    deep_link: '/mobile/picks/result-recap'
   }),
   reward_unlocked: (name: string) => ({
     title: `${name} reward unlocked`,
-    body: 'A new reward tier unlocked. Update your unlock panel to claim this weekend bonus.'
+    body: 'A new reward tier unlocked. Update your unlock panel to claim this weekend bonus.',
+    status: 'reward',
+    reward: '3-day premium trial unlocked after your third tailed win.',
+    deep_link: '/mobile/rewards/weekend-bonus'
   }),
   live_capper_note: (name: string) => ({
     title: `${name} live note`,
@@ -135,6 +169,7 @@ function App() {
           status: 'offline',
           inbox: [],
           followedCappers: fan.followed_cappers,
+          tailedPickIds: [],
           latestLatencyMs: null,
           highlightId: null
         }
@@ -211,6 +246,7 @@ function App() {
         status: 'offline',
         inbox: [],
         followedCappers: fanById.get(fanId)?.followed_cappers ?? [],
+        tailedPickIds: [],
         latestLatencyMs: null,
         highlightId: null
       })
@@ -237,7 +273,7 @@ function App() {
 
   if (!bootstrap || !metrics) {
     return <main className="app-shell">
-      <h1>Dub Club Realtime Notifications</h1>
+      <h1>DubClub Realtime Notifications</h1>
       <p>Loading demo seed data and connecting to server...</p>
     </main>
   }
@@ -247,7 +283,7 @@ function App() {
       <header className="dashboard-section section-header header-card">
         <div>
           <p className="eyebrow">Staff System Design Demo</p>
-          <h1>Dub Club Realtime Notifications</h1>
+          <h1>DubClub Realtime Notifications</h1>
         </div>
         <div className="status-pill-wrap">
           <span className="status-pill">Server: online</span>
@@ -425,11 +461,12 @@ type FanClientPanelProps = {
 function FanClientPanel({ fan, wsUrl, state, capperMap, onUpdate }: FanClientPanelProps) {
   const localState = state ?? {
     status: 'offline' as const,
-    inbox: [],
-    followedCappers: [],
-    latestLatencyMs: null,
-    highlightId: null
-  }
+        inbox: [],
+        followedCappers: [],
+        tailedPickIds: [],
+        latestLatencyMs: null,
+        highlightId: null
+      }
 
   useEffect(() => {
     const socket = new WebSocket(wsUrl)
@@ -486,6 +523,7 @@ function FanClientPanel({ fan, wsUrl, state, capperMap, onUpdate }: FanClientPan
             ...localState,
             inbox: [],
             followedCappers: fan.followed_cappers,
+            tailedPickIds: [],
             latestLatencyMs: null,
             highlightId: null
           }
@@ -541,22 +579,63 @@ function FanClientPanel({ fan, wsUrl, state, capperMap, onUpdate }: FanClientPan
         Latest latency: {localState.latestLatencyMs === null ? 'waiting...' : `${localState.latestLatencyMs} ms`}
       </p>
 
+      <p>
+        Tailed picks: {localState.tailedPickIds.length}
+      </p>
+
       <div className="inbox-list">
         {localState.inbox.length === 0 ? (
           <p className="muted">No notifications yet.</p>
         ) : (
-          localState.inbox.map((entry) => (
-            <div
-              key={entry.event_id}
-              className={
-                localState.highlightId === entry.event_id ? 'inbox-item highlight' : 'inbox-item'
-              }
-            >
-              <strong>{entry.payload.title}</strong>
-              <p className="small">{entry.payload.body}</p>
-              <p className="small mono">{entry.type} · {entry.receiveLatencyMs}ms</p>
-            </div>
-          ))
+          localState.inbox.map((entry) => {
+            const pickId = entry.payload.pick_id
+            const isTailed = Boolean(pickId && localState.tailedPickIds.includes(pickId))
+
+            return (
+              <div
+                key={entry.event_id}
+                className={
+                  localState.highlightId === entry.event_id ? 'inbox-item highlight' : 'inbox-item'
+                }
+              >
+                <div className="inbox-title-row">
+                  <strong>{entry.payload.title}</strong>
+                  {entry.payload.status ? <span className={`pick-status ${entry.payload.status}`}>{entry.payload.status}</span> : null}
+                </div>
+                <p className="small">{entry.payload.body}</p>
+                {entry.payload.market ? (
+                  <div className="pick-slip">
+                    <p>{entry.payload.market}</p>
+                    <div className="pick-slip-grid">
+                      <span>{entry.payload.line}</span>
+                      <span>{entry.payload.odds}</span>
+                      <span>{entry.payload.confidence ? `${entry.payload.confidence}% edge` : entry.payload.result ?? entry.payload.reward}</span>
+                    </div>
+                  </div>
+                ) : null}
+                {entry.payload.result ? <p className="small outcome">{entry.payload.result}</p> : null}
+                {entry.payload.reward ? <p className="small outcome">{entry.payload.reward}</p> : null}
+                <div className="inbox-actions">
+                  {pickId ? (
+                    <button
+                      className={isTailed ? 'secondary-action' : undefined}
+                      disabled={isTailed}
+                      onClick={() => {
+                        onUpdate((prev) => ({
+                          ...prev,
+                          tailedPickIds: Array.from(new Set([...prev.tailedPickIds, pickId]))
+                        }))
+                      }}
+                    >
+                      {isTailed ? 'Tailed' : 'Tail Pick'}
+                    </button>
+                  ) : null}
+                  {entry.payload.deep_link ? <a href={entry.payload.deep_link}>Open</a> : null}
+                </div>
+                <p className="small mono">{entry.type} · {entry.receiveLatencyMs}ms</p>
+              </div>
+            )
+          })
         )}
       </div>
     </article>

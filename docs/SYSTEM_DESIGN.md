@@ -8,7 +8,8 @@ Capabilities now in this iteration:
 
 - REST endpoint `POST /api/events` publishes capper actions.
 - In-memory fan follow map.
-- WebSocket fan connections keyed by `fanId`.
+- WebSocket fan connections keyed by `fanId`, with multiple active sessions per fan.
+- Pick payload metadata for fan actions such as tailing, result review, rewards, and deep links.
 - Delivery acknowledgements update `event_log` and latency samples.
 - Bounded in-memory event log (`MAX_EVENT_LOG`) used as a replay buffer.
 - Idempotent fan delivery with `(event_id, fan_id)` de-duplication.
@@ -32,6 +33,7 @@ Gateway responsibilities:
 - authenticate fan session
 - maintain heartbeat / heartbeat state
 - keep presence in Redis
+- support multiple devices per fan without dropping existing sessions
 - route fanout from bus to local fan channels
 - expose control-room observability stream
 

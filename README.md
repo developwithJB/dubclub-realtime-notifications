@@ -1,4 +1,4 @@
-# Dub Club Realtime Notifications
+# DubClub Realtime Notifications
 
 Staff-level system design challenge MVP for a sports creator platform.
 
@@ -7,14 +7,16 @@ Staff-level system design challenge MVP for a sports creator platform.
 ## What this proves
 
 - Capper actions are **targeted by follow graph** and delivered only to matching fan sockets.
+- Fans can act on product notifications by tailing picks, reviewing odds movement, opening pick deep links, and seeing result/reward context.
 - Real-time system health is visible with active connections, sent/delivered counts, average latency, and p95.
-- MVP reliability primitives are in place: heartbeat, replay window, and idempotent acknowledgement handling.
+- MVP reliability primitives are in place: heartbeat, replay window, multi-session fan sockets, and idempotent acknowledgement handling.
 
 ## How to run
 
 - `npm install`
 - `npm run dev`
 - `npm run test:smoke`
+- optional mobile prototype: `cd mobile && npm install && npm run ios`
 
 ## Why this project exists
 
@@ -25,8 +27,13 @@ This is a demo-first implementation of a capper workflow used by sports creators
 - result updates
 - reward notifications
 - live notes
+- fan-side tailing and pick deep links
 
 The repository includes working code plus the design story so a reviewer can evaluate both correctness and scale direction in minutes.
+
+## Role alignment
+
+DubClub's production stack is Django/Go, PostgreSQL, TypeScript/Svelte, React Native, Docker, GitHub Actions, and Terraform. This demo uses Node + TypeScript for evaluator speed and a tiny setup footprint, while the production notes map the same boundaries to a Go or Django API, Postgres durability, and a sharded gateway/fanout path. The `mobile/` folder adds a focused Expo/React Native fan inbox prototype because this role explicitly values mobile product judgment.
 
 ## One-screen architecture (local + production path)
 
@@ -65,9 +72,10 @@ flowchart LR
 
 - Two seeded cappers: SharpSide Sam, Courtside Kelly
 - Six seeded fans with different follow combinations
-- Capper Control Room, simulated fan clients, live event stream, and metrics
+- Capper Control Room, simulated fan clients, tail-pick action, live event stream, and metrics
 - Replay on reconnect with event id cursor and dedupe on acknowledgements
 - Load test and smoke test scripts for repeatable validation
+- Optional Expo mobile prototype with reconnect state and pick deep links
 
 ## Scripts
 
