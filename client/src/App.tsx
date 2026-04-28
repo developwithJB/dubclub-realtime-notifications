@@ -244,7 +244,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="header-card">
+      <header className="dashboard-section section-header header-card">
         <div>
           <p className="eyebrow">Staff System Design Demo</p>
           <h1>Dub Club Realtime Notifications</h1>
@@ -255,75 +255,60 @@ function App() {
         </div>
       </header>
 
-      <section className="metrics-grid" aria-label="live metrics">
+      <section className="dashboard-section section-metrics metrics-grid" aria-label="live metrics">
         <article className="metric-card">
           <p>Active connections</p>
-          <strong>{metrics.active_connections}</strong>
+          <strong className="metric-value">{metrics.active_connections}</strong>
         </article>
         <article className="metric-card">
           <p>Notifications sent</p>
-          <strong>{metrics.notifications_sent}</strong>
+          <strong className="metric-value">{metrics.notifications_sent}</strong>
         </article>
         <article className="metric-card">
           <p>Notifications delivered</p>
-          <strong>{metrics.notifications_delivered}</strong>
+          <strong className="metric-value">{metrics.notifications_delivered}</strong>
         </article>
         <article className="metric-card">
           <p>Average latency</p>
-          <strong>{metrics.average_latency_ms} ms</strong>
+          <strong className="metric-value">{metrics.average_latency_ms} ms</strong>
         </article>
         <article className="metric-card">
           <p>P95 latency</p>
-          <strong>{metrics.p95_latency_ms} ms</strong>
+          <strong className="metric-value">{metrics.p95_latency_ms} ms</strong>
         </article>
         <article className="metric-card">
           <p>Last event type</p>
-          <strong>{metrics.last_event_type}</strong>
+          <strong className="metric-value metric-value--wide">{metrics.last_event_type}</strong>
         </article>
       </section>
 
-      <section className="two-column">
-        <article className="card">
-          <h2>Capper Control Room</h2>
-          <p>Broadcast capper updates to only fans who follow that capper.</p>
+      <section className="dashboard-section section-capper-control card">
+        <h2>Capper Control Room</h2>
+        <p>Broadcast capper updates to only fans who follow that capper.</p>
 
-          <label htmlFor="capper-select">Active capper</label>
-          <select
-            id="capper-select"
-            value={selectedCapper}
-            onChange={(event) => setSelectedCapper(event.target.value)}
-          >
-            {bootstrap.cappers.map((capper) => (
-              <option value={capper.id} key={capper.id}>
-                {capper.name}
-              </option>
-            ))}
-          </select>
+        <label htmlFor="capper-select">Active capper</label>
+        <select
+          id="capper-select"
+          value={selectedCapper}
+          onChange={(event) => setSelectedCapper(event.target.value)}
+        >
+          {bootstrap.cappers.map((capper) => (
+            <option value={capper.id} key={capper.id}>
+              {capper.name}
+            </option>
+          ))}
+        </select>
 
-          <div className="button-grid">
-            {(
-              Object.entries(ACTION_LABELS) as Array<[CapperAction, string]>
-            ).map(([action, label]) => (
-              <button key={action} onClick={() => void sendAction(action)}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="card">
-          <h2>Architecture Summary</h2>
-          <ul>
-            <li>Node + ws backend with in-memory fan presence and follow map.</li>
-            <li>One WebSocket per fan connection.</li>
-            <li>Capper actions pushed over HTTP and fanout executed on server.</li>
-            <li>Fan clients acknowledge each message so latency is measured per delivery.</li>
-            <li>Control room receives a live control stream for metrics + event logs.</li>
-          </ul>
-        </article>
+        <div className="button-grid">
+          {(Object.entries(ACTION_LABELS) as Array<[CapperAction, string]>).map(([action, label]) => (
+            <button key={action} onClick={() => void sendAction(action)}>
+              {label}
+            </button>
+          ))}
+        </div>
       </section>
 
-      <section className="card">
+      <section className="dashboard-section section-fans card">
         <h2>Simulated Fan Clients</h2>
         <div className="fans-grid">
           {bootstrap.fans.map((fan) => (
@@ -339,9 +324,9 @@ function App() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="dashboard-section section-event-stream card">
         <h2>Live Event Stream</h2>
-        <div className="event-table-wrapper">
+        <div className="event-table-wrapper desktop-visible">
           <table>
             <thead>
               <tr>
@@ -377,18 +362,48 @@ function App() {
             </tbody>
           </table>
         </div>
+        <div className="mobile-event-list">
+          {eventLog.length === 0 ? (
+            <p className="muted">No events yet.</p>
+          ) : (
+            eventLog.map((entry) => (
+              <article className="event-card" key={`${entry.event_id}-mobile`}>
+                <div className="event-card-row">
+                  <strong>{ACTION_LABELS[entry.type]}</strong>
+                  <span>{entry.capper_name}</span>
+                </div>
+                <p className="small">
+                  Delivered: {entry.delivered_count}/{entry.recipient_count}
+                </p>
+                <p className="small">Latency: {entry.latency_ms ?? '-'} ms</p>
+                <p>{entry.payload.title}</p>
+              </article>
+            ))
+          )}
+        </div>
       </section>
 
-      <section className="card">
+      <section className="dashboard-section section-architecture card">
+        <h2>Architecture Summary</h2>
+        <ul>
+          <li>Node + ws backend with in-memory fan presence and follow map.</li>
+          <li>One WebSocket per fan connection.</li>
+          <li>Capper actions pushed over HTTP and fanout executed on server.</li>
+          <li>Fan clients acknowledge each message so latency is measured per delivery.</li>
+          <li>Control room receives a live control stream for metrics + event logs.</li>
+        </ul>
+      </section>
+
+      <section className="dashboard-section section-event-log card">
         <h2>Notification Event Log</h2>
         <div className="log-list">
           {eventLog.map((entry) => (
             <div className="log-item" key={`${entry.event_id}-log`}>
-              <p>
+              <p className="event-log-title">
                 <strong>{entry.payload.title}</strong> - {entry.capper_name}
               </p>
-              <p className="mono small">{entry.event_id}</p>
-              <p>
+              <p className="mono small event-log-id">{entry.event_id}</p>
+              <p className="event-log-time">
                 created {new Date(entry.created_at).toLocaleTimeString()} · delivered at {entry.delivered_at ?? 'pending'}
               </p>
             </div>
