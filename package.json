@@ -10,10 +10,15 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "build": "npm run build --prefix server && npm run build --prefix client",
-    "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix client"
+    "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix client",
+    "load:test": "tsx scripts/load-test.ts",
+    "load:test:small": "LOAD_TEST_CLIENTS=25 LOAD_TEST_EVENT_COUNT=5 tsx scripts/load-test.ts",
+    "load:test:medium": "LOAD_TEST_CLIENTS=250 LOAD_TEST_EVENT_COUNT=25 tsx scripts/load-test.ts",
+    "test:smoke": "tsx scripts/smoke-test.ts"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
+    "tsx": "^4.19.1",
     "typescript": "^5.4.5"
   }
 }
