@@ -1,208 +1,91 @@
-# Dub Club Realtime Notifications (MVP)
+# Dub Club Realtime Notifications
+
+Staff-level system design challenge MVP for a sports creator platform.
 
 [![CI](https://github.com/developwithJB/dubclub-realtime-notifications/actions/workflows/ci.yml/badge.svg)](https://github.com/developwithJB/dubclub-realtime-notifications/actions/workflows/ci.yml)
 
-This repo is an open-source **system-design demo project** for a real-time notification platform used by a sports creator community.
+## What this proves
 
-Cappers publish content in real time. Fans receive only the notifications for cappers they follow.
+- Capper actions are **targeted by follow graph** and delivered only to matching fan sockets.
+- Real-time system health is visible with active connections, sent/delivered counts, average latency, and p95.
+- MVP reliability primitives are in place: heartbeat, replay window, and idempotent acknowledgement handling.
 
-## Product framing
+## How to run
 
-- Expert cappers post:
-  - new picks
-  - odds movement alerts
-  - game-start reminders
-  - result updates
-  - rewards and notes
-- Fans should only receive what they follow.
-- Dashboard should expose fan activity, delivery health, and latency signals.
+- `npm install`
+- `npm run dev`
+- `npm run test:smoke`
 
-This project is deliberately MVP-first: minimal infrastructure, clear local behavior, and strong interview-ready explanation.
+## Why this project exists
 
-## What this project contains
+This is a demo-first implementation of a capper workflow used by sports creators:
+- new picks
+- odds movement alerts
+- game start reminders
+- result updates
+- reward notifications
+- live notes
 
-- Node + TypeScript WebSocket backend (`server/`)
-- Vite + React + TypeScript dashboard (`client/`)
-- Two seeded cappers and six seeded fan identities
-- Live fanout with per-event acknowledgements
-- Reconnect replay using an in-memory event buffer
-- Event idempotency for ack handling
-- Load-test and smoke-test scripts for repeatable validation
-- CI pipeline that builds, typechecks, and runs smoke checks
+The repository includes working code plus the design story so a reviewer can evaluate both correctness and scale direction in minutes.
 
-## Why this exists
+## One-screen architecture (local + production path)
 
-The goal is to show a practical path from a local demo to a scalable production architecture with clear tradeoffs:
+```mermaid
+flowchart LR
+  subgraph Local MVP
+    A[Capper Control Room UI] -->|POST /api/events| B[Node server]
+    B --> C[In-memory capper/fan state]
+    B -->|fanout capper_event| D[Fan WebSocket Clients]
+    B -->|control_stream| E[Control Room metrics panel]
+    B --> F[In-memory replay buffer]
+    E --> G[Event log + metrics UI]
+  end
 
-- local architecture you can run and inspect in minutes
-- explicit notes on what changes at 100k concurrent connection scale
-- evidence of latency and fan targeting behavior through scripts + dashboard
+  A2[Fan reconnects with last_seen_event_id] -->|register + cursor| B
+  B -->|replay matched events| D
 
-## Quick start
-
-### 1) Install
-
-```bash
-npm install
+  subgraph Production target
+    B --> H[Redis presence + capper index]
+    B --> I[Message bus]
+    I --> J[Fanout workers]
+    J --> D
+    J --> K[Postgres event + delivery store]
+    J --> L[Push fallback provider]
+  end
 ```
 
-### 2) Run local dev
+## Demo flow
 
-```bash
-npm run dev
-```
+- [Demonstration script (90 sec)](docs/DEMO_SCRIPT.md)
+- [Load testing notes](docs/LOAD_TESTING.md)
+- [System design write-up](docs/SYSTEM_DESIGN.md)
+- [Submission note](docs/SUBMISSION_NOTE.md)
 
-This starts:
+## Core features
 
-- backend server at `http://localhost:4000`
-- frontend dashboard at `http://localhost:5173`
-
-Open the dashboard in your browser.
-
-## Core demo sections
-
-### Capper Control Room
-
-- select either seeded capper:
-  - SharpSide Sam
-  - Courtside Kelly
-- send one of:
-  - Post New Pick
-  - Odds Moved
-  - Game Starting Soon
-  - Result Posted
-  - Reward Unlocked
-  - Live Capper Note
-
-### Simulated Fan Clients
-
-- six seeded fan cards
-- each shows:
-  - connection state
-  - followed cappers
-  - inbox notifications
-  - latest observed latency
-  - highlight animation on newly received events
-
-### Live event stream and metrics
-
-- active connections
-- sent notifications
-- delivered notifications
-- average latency
-- p95 latency
-- latest event type
-- rolling event log
-
-### Follow targeting proof
-
-A fan receives events only if the fan currently follows that capper.
-
-## Seeded fan data
-
-- 2 cappers are seeded:
-  - SharpSide Sam
-  - Courtside Kelly
-- 6 fans are seeded with follow combinations:
-  - some follow Sam
-  - some follow Kelly
-  - one follows both
-  - one follows neither
-
-## Local architecture
-
-```text
-Control Room UI --> POST /api/events
-                        |
-                        v
-         Node + ws Backend (WebSocket + HTTP)
-         | fan connections + follow map in memory |
-         +--> fan sockets receive capper events
-         +--> control socket receives live metrics + event log
-```
-
-## Replay and idempotency
-
-The backend keeps a bounded in-memory event log (replay buffer). On fan reconnect:
-
-- fan can send `last_seen_event_id` in `register`
-- server replays events after that event id for followed cappers
-- duplicates are deduped with `event_id`+`fan_id`
-
-If `last_seen_event_id` is too old, server replays best-effort from buffer and notes that early events may be missing.
-
-This is local-first behavior and is documented as a bridge to durable replay in production.
+- Two seeded cappers: SharpSide Sam, Courtside Kelly
+- Six seeded fans with different follow combinations
+- Capper Control Room, simulated fan clients, live event stream, and metrics
+- Replay on reconnect with event id cursor and dedupe on acknowledgements
+- Load test and smoke test scripts for repeatable validation
 
 ## Scripts
 
-From repository root:
-
-- `npm run dev`
-  - runs backend and frontend together
-- `npm run build`
-- `npm run typecheck`
-- `npm run load:test`
-  - uses env-configurable simulation settings (defaults: 100 clients, 10 events)
+- `npm run dev` starts backend and frontend
+- `npm run load:test` runs configurable local load simulation
 - `npm run load:test:small`
 - `npm run load:test:medium`
 - `npm run test:smoke`
-  - validates targeted fan delivery and numeric metrics
+- `npm run typecheck`
+- `npm run build`
 
-## Load testing notes
+## What to check during review
 
-See [docs/LOAD_TESTING.md](docs/LOAD_TESTING.md) for:
+- Confirm only follower fans receive events
+- Confirm metrics move during sends
+- Confirm smoke and small load checks are clean
+- Confirm docs show local scope and production mapping
 
-- command examples
-- metrics collected
-- what the test proves
-- why local load tests do not prove 100k by themselves
+## Known MVP boundary
 
-## CI
-
-Workflow: [ci.yml](.github/workflows/ci.yml)
-
-- npm install
-- npm run typecheck
-- npm run build
-- starts server and runs smoke test
-
-## Local to production mapping
-
-This demo intentionally uses in-memory state and one process. For production-like behavior:
-
-- WebSocket gateway layer handles auth, heartbeats, and session state
-- Redis holds connection presence and fan follow index
-- API/service publishes events to a message bus
-- fanout workers subscribe and push to local gateway shards
-- Postgres stores events + delivery attempts for durability
-- offline fallback queue / push provider for disconnected users
-
-See [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) for full details and scaling math.
-
-## Latency budget (local target)
-
-For each message:
-
-- event created timestamp is set when action is posted
-- fan computes receive delay from `created_at`
-- server tracks ack delay for latency metrics
-
-Local traffic is small and should stay low-latency under normal conditions.
-
-## Production scaling math shown in notes
-
-- `20` gateway nodes x `5,000` concurrent sockets = `100,000` connections
-- this architecture assumes sharding and Redis pub/sub + durable storage
-
-## Known limits in MVP
-
-- event storage, fan mappings, and ack state are in-memory
-- one process for both API and fanout in this stage
-- no auth, no message queue, no durable replay or push fallback
-- local load tests validate method, not full capacity
-
-## Acceptance notes for reviewers
-
-- can run locally with `npm install`, `npm run dev`, `npm run build`, `npm run typecheck`
-- `npm run test:smoke` validates target filtering and metric shape
-- replay/idempotency behavior is intentionally simple and clearly documented
+This stage is intentionally in-memory and intentionally local. It demonstrates architecture behavior before introducing Redis, gateway sharding, durable replay, and mobile push fallback for full production scale.
