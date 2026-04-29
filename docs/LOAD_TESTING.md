@@ -10,6 +10,8 @@
 - measures end-to-end receive latency from `created_at`
 - reports average, p95, and p99 latency
 - reports total wall-clock duration
+- fails when expected follower-session deliveries are missed
+- fails when any non-follower receives a capper event
 
 ### `npm run test:smoke`
 
@@ -37,7 +39,7 @@ npm run load:test:medium
 ### Load test
 
 - `LOAD_TEST_CLIENTS` (default `100`)
-- `LOAD_TEST_CAPPER_ID` (default `capper_sam`)
+- `LOAD_TEST_CAPPER_ID` (default `capper_sam`, resolved to the seeded Sam capper)
 - `LOAD_TEST_EVENT_COUNT` (default `10`)
 - `LOAD_TEST_WS_URL` (default `ws://localhost:4000`)
 - `LOAD_TEST_API_BASE` (optional; derived from WS URL if omitted)
@@ -73,3 +75,4 @@ A production-grade validation would run load generators from multiple hosts:
 - p95/p99 here should be interpreted as local latency estimates.
 - if averages look suspiciously low with large client counts, likely due to client reuse or short retry windows in the local setup.
 - this project intentionally stays in-memory first; the docs call out what to change for production durability.
+- repeated fan ids represent multiple active devices/sessions for a single fan; the server now fans out to every active session while counting acknowledgements idempotently per fan/event.

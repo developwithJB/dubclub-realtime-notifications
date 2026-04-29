@@ -1,4 +1,4 @@
-# Dub Club Realtime Notifications - 90-Second Loom Script
+# DubClub Realtime Notifications - 90-Second Loom Script
 
 ## 0:00 - What this is
 
@@ -34,6 +34,10 @@ I show two fan cards:
 
 I point out the highlights on fan inbox cards and the delivery log so it is clear the routing is targeted, not broadcast.
 
+## 0:58 - Show the fan product action
+
+On the fan card, I click **Tail Pick** and show that the pick moves from passive alert to fan intent. The payload includes the market, line, odds, confidence, status, and a deep link into the pick surface, which is the daily-use product loop behind the infrastructure.
+
 ## 1:00 - Show latency metrics and event log
 
 I show the metrics panel:
@@ -49,6 +53,7 @@ Then I show the event log proving per-event id tracking and delivery status.
 This also includes lightweight automation:
 - `npm run test:smoke` checks follower-only delivery and metrics shape.
 - `npm run load:test:small` simulates many live fan sockets and reports latency percentiles.
+- The load test fails if expected follower-session deliveries are missed or non-followers receive messages.
 - Reconnect replay and event id dedupe protect delivery state when clients reconnect.
 - CI runs install, typecheck, build, then server smoke checks for each PR.
 

@@ -179,6 +179,12 @@ button:hover {
   filter: brightness(1.07);
 }
 
+button:disabled {
+  cursor: default;
+  opacity: 0.72;
+  filter: none;
+}
+
 .button-grid {
   display: grid;
   gap: 0.55rem;
@@ -257,6 +263,97 @@ button:hover {
 .inbox-item.highlight {
   border-color: #22c55e;
   animation: notification-pulse 1.05s ease-in-out;
+}
+
+.inbox-title-row,
+.inbox-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pick-status {
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: #dbeafe;
+  background: #243b63;
+}
+
+.pick-status.open {
+  color: #bbf7d0;
+  background: #14532d;
+}
+
+.pick-status.moved {
+  color: #fef3c7;
+  background: #78350f;
+}
+
+.pick-status.graded,
+.pick-status.reward {
+  color: #cffafe;
+  background: #155e75;
+}
+
+.pick-slip {
+  border: 1px solid #284668;
+  border-radius: 8px;
+  padding: 0.45rem;
+  margin: 0.45rem 0;
+  background: rgba(15, 32, 54, 0.88);
+}
+
+.pick-slip p {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+}
+
+.pick-slip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.pick-slip-grid span {
+  border-radius: 6px;
+  padding: 0.3rem;
+  background: #081426;
+  color: #c7d2fe;
+  font-size: 0.76rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  color: #bbf7d0;
+}
+
+.inbox-actions {
+  margin: 0.45rem 0 0.25rem;
+}
+
+.inbox-actions button,
+.inbox-actions a {
+  min-height: 36px;
+  border-radius: 7px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.inbox-actions a {
+  display: inline-flex;
+  align-items: center;
+  color: #bfdbfe;
+  text-decoration: none;
+  border: 1px solid #385781;
+  background: #0b1626;
+}
+
+.secondary-action {
+  background: #1f3a5f;
 }
 
 .muted {

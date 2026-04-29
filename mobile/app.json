@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "DubClub Fan Prototype",
+    "slug": "dubclub-fan-prototype",
+    "scheme": "dubclub",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}
