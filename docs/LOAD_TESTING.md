@@ -6,12 +6,13 @@
 
 - attempts and succeeds fan socket connections
 - sends a configurable number of events
+- records the exact event IDs published during the current run
 - records message receive counts
 - measures end-to-end receive latency from `created_at`
 - reports average, p95, and p99 latency
 - reports total wall-clock duration
-- fails when expected follower-session deliveries are missed
-- fails when any non-follower receives a capper event
+- fails when expected follower-session deliveries for current-run event IDs are missed
+- fails when any non-follower receives a current-run capper event
 
 ### `npm run test:smoke`
 
@@ -19,6 +20,10 @@
 - verifies only follower sockets receive the event
 - verifies non-followers receive nothing for that event
 - verifies metrics endpoint returns numeric latency counters
+- verifies duplicate ack idempotency
+- verifies invalid capper publish rejection
+- verifies unknown follow update rejection
+- verifies reconnect replay delivers a missed followed-capper event
 
 ## Quick command line
 
@@ -76,3 +81,4 @@ A production-grade validation would run load generators from multiple hosts:
 - if averages look suspiciously low with large client counts, likely due to client reuse or short retry windows in the local setup.
 - this project intentionally stays in-memory first; the docs call out what to change for production durability.
 - repeated fan ids represent multiple active devices/sessions for a single fan; the server now fans out to every active session while counting acknowledgements idempotently per fan/event.
+- load checks intentionally count only event IDs created in the current run, so prior replay-buffer messages cannot make a run look healthier than it is.

@@ -7,13 +7,15 @@ The MVP keeps one Node process responsible for HTTP + WebSocket fanout.
 Capabilities now in this iteration:
 
 - REST endpoint `POST /api/events` publishes capper actions.
+- Publish payload accepts product metadata: `audience_segment`, `delivery_channels`, `business_goal`, and optional `idempotency_key`.
 - In-memory fan follow map.
 - WebSocket fan connections keyed by `fanId`, with multiple active sessions per fan.
-- Pick payload metadata for fan actions such as tailing, result review, rewards, and deep links.
+- Pick payload metadata for fan actions such as tailing, result review, rewards, trust context, responsible-play copy, and deep links.
 - Delivery acknowledgements update `event_log` and latency samples.
 - Bounded in-memory event log (`MAX_EVENT_LOG`) used as a replay buffer.
 - Idempotent fan delivery with `(event_id, fan_id)` de-duplication.
 - Last-seen cursor on fan `register` to attempt reconnect replay.
+- Request-size guard and known capper/follow validation keep the demo API explicit without adding a full auth layer.
 
 ## Production architecture (target)
 
@@ -25,6 +27,16 @@ At scale:
 4. Fanout worker pool performs targeted delivery.
 5. Delivery states are written to durable storage.
 6. Offline path writes to push queue fallback.
+
+## Product context
+
+This system is designed around DubClub's two-sided workflow:
+
+- cappers need an operating system for urgent picks, result transparency, rewards, and subscriber retention
+- fans need a low-friction way to trust, tail, review, and re-open capper content
+- DubClub needs observability that separates business audience size from realtime delivery health
+
+The MVP therefore tracks both product metadata and transport metadata. A notification is not just "sent"; it has an audience segment, delivery channel intent, business goal, trust context, and delivery breakdown.
 
 ## WebSocket gateway layer
 
@@ -70,6 +82,8 @@ Core tables:
 - `capper_follows`
 - `notification_events`
 - `notification_deliveries`
+- `notification_idempotency_keys`
+- `fan_delivery_cursors`
 
 Durability goals:
 
@@ -77,6 +91,7 @@ Durability goals:
 - exactly-once/once-delivered semantics at API level
 - replay cursor persistence per fan
 - latency and failure attribution queries
+- trustworthy result/reward ledger for fan-facing history
 
 ## Offline push fallback
 
@@ -126,11 +141,13 @@ Current MVP:
 - `event_id` is generated per capper action
 - fan-level dedupe map prevents duplicate counting in metrics
 - duplicate ack for same fan/event is ignored
+- optional publish `idempotency_key` returns the prior event instead of broadcasting again
 
 Production extension:
 
 - unique constraint on `(event_id, fan_id)` in delivery table
 - idempotency token on publish API to protect retries from clients
+- scoped unique constraint on `(capper_id, idempotency_key)` for retry-safe capper publishes
 
 ## Failure modes
 
@@ -144,8 +161,11 @@ Production extension:
 Track:
 
 - active sessions by gateway
+- follower targets versus online fan targets
+- online sessions targeted
 - send queue length / fanout p50/p95/p99
-- delivery attempts, successes, retries, failures
+- delivery attempts, successes, retries, failures, replay sends, duplicate acks ignored
+- offline pending fan count
 - replay volume and replay misses
 - heartbeat drops and reconnect churn
 
@@ -167,7 +187,16 @@ In production this requires:
 - [x] Targeting correctness and end-to-end observability in demo
 - [x] Idempotent ack handling at fan level
 - [x] Reconnect replay with bounded buffer
+- [x] Publish idempotency and basic API hardening
+- [x] Product metadata for audience, channels, business goal, and trust context
 - [ ] Durable fan/offline persistence
 - [ ] Distributed websocket gateway pool
 - [ ] Auth + authorization + moderation controls
 - [ ] Push fallback for mobile/offline channels
+
+## Intentional MVP stubs
+
+- Auth and authorization: local demo trusts seeded fan/capper IDs; production signs fan sessions and scopes capper publish rights.
+- Payments/subscriptions: follow state is seeded; production gates audience segments through subscription entitlements.
+- Compliance/moderation: responsible-play copy is present, but real deployment needs jurisdiction-aware policy, support flows, and spend controls.
+- Durable storage: event log, replay, idempotency, and cursors are in memory for review speed; production moves them to Redis/Postgres.

@@ -47,7 +47,8 @@ interface SimulatedClient {
   fanId: string
   ws: WebSocket
   receivedMessages: number
-  latenciesMs: number[]
+  receivedEventIds: Set<string>
+  latencyByEventId: Map<string, number>
   isConnected: boolean
 }
 
@@ -98,6 +99,7 @@ async function main() {
   let successfulConnections = 0
   let failedConnections = 0
   let eventsSent = 0
+  const publishedEventIds = new Set<string>()
   const clients: SimulatedClient[] = []
 
   for (let index = 0; index < LOAD_TEST_CLIENTS; index++) {
@@ -123,7 +125,7 @@ async function main() {
 
   for (let index = 0; index < LOAD_TEST_EVENT_COUNT; index++) {
     const action = AVAILABLE_ACTIONS[index % AVAILABLE_ACTIONS.length]
-    const body = `Load test event ${index + 1} · ${randomUUID()}`
+    const payloadBody = `Load test event ${index + 1} · ${randomUUID()}`
     const response = await fetch(`${API_BASE}/api/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -132,7 +134,7 @@ async function main() {
         capper_id: capperId,
         payload: {
           title: `${action.replace(/_/g, ' ')} #${index + 1}`,
-          body
+          body: payloadBody
         }
       })
     })
@@ -142,28 +144,40 @@ async function main() {
       throw new Error(`Failed sending event #${index + 1}: ${response.status} ${text}`)
     }
 
+    const parsed = (await response.json()) as { event: { event_id: string } }
+    publishedEventIds.add(parsed.event.event_id)
     eventsSent += 1
     await delay(25)
   }
 
   const deadline = Date.now() + Math.max(5000, expectedMessages * 20)
   while (Date.now() < deadline) {
-    const totalReceived = clients.reduce((sum, client) => sum + client.receivedMessages, 0)
+    const totalReceived = clients.reduce((sum, client) => {
+      return sum + countPublishedMessages(client.receivedEventIds, publishedEventIds)
+    }, 0)
     if (totalReceived >= expectedMessages) {
       break
     }
     await delay(50)
   }
 
-  const allLatencies = clients.flatMap((client) => client.latenciesMs).sort((a, b) => a - b)
+  const allLatencies = clients
+    .flatMap((client) => {
+      return Array.from(client.latencyByEventId.entries())
+        .filter(([eventId]) => publishedEventIds.has(eventId))
+        .map(([, latency]) => latency)
+    })
+    .sort((a, b) => a - b)
 
-  const totalMessages = clients.reduce((sum, client) => sum + client.receivedMessages, 0)
+  const totalMessages = clients.reduce((sum, client) => {
+    return sum + countPublishedMessages(client.receivedEventIds, publishedEventIds)
+  }, 0)
   const nonFollowerMessages = clients
     .filter((client) => !followerFanIds.includes(client.fanId))
-    .reduce((sum, client) => sum + client.receivedMessages, 0)
+    .reduce((sum, client) => sum + countPublishedMessages(client.receivedEventIds, publishedEventIds), 0)
 
-  if (totalMessages < expectedMessages) {
-    throw new Error(`Load test missed deliveries: expected ${expectedMessages}, received ${totalMessages}`)
+  if (totalMessages !== expectedMessages) {
+    throw new Error(`Load test delivery mismatch: expected ${expectedMessages}, received ${totalMessages}`)
   }
 
   if (nonFollowerMessages > 0) {
@@ -203,7 +217,8 @@ async function createClient(fanId: string): Promise<SimulatedClient> {
     fanId,
     ws,
     receivedMessages: 0,
-    latenciesMs: [],
+    receivedEventIds: new Set(),
+    latencyByEventId: new Map(),
     isConnected: false
   }
 
@@ -242,7 +257,8 @@ async function createClient(fanId: string): Promise<SimulatedClient> {
 
     const latencyMs = Math.max(0, Date.now() - Date.parse(payload.created_at))
     client.receivedMessages += 1
-    client.latenciesMs.push(latencyMs)
+    client.receivedEventIds.add(payload.event_id)
+    client.latencyByEventId.set(payload.event_id, latencyMs)
     ws.send(
       JSON.stringify({
         type: 'ack',
@@ -304,6 +320,16 @@ function average(values: number[]): number {
 function percentile(sortedValues: number[], ratio: number): number {
   const index = Math.max(0, Math.min(Math.floor((sortedValues.length - 1) * ratio), sortedValues.length - 1))
   return sortedValues[index] ?? 0
+}
+
+function countPublishedMessages(receivedEventIds: Set<string>, publishedEventIds: Set<string>): number {
+  let count = 0
+  for (const eventId of receivedEventIds) {
+    if (publishedEventIds.has(eventId)) {
+      count += 1
+    }
+  }
+  return count
 }
 
 function safeParse(raw: string) {

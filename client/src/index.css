@@ -31,13 +31,15 @@ body {
   grid-template-columns: 1fr;
   grid-template-areas:
     "header"
+    "lenses"
+    "detail"
     "metrics"
     "capper"
     "fans"
     "stream"
     "architecture"
     "log";
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .header-card {
@@ -49,12 +51,16 @@ body {
   border: 1px solid #263654;
   border-radius: 12px;
   padding: 1rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   width: 100%;
 }
 
 .section-header {
   grid-area: header;
+}
+
+.section-lenses {
+  grid-area: lenses;
 }
 
 .section-metrics {
@@ -63,6 +69,10 @@ body {
 
 .section-capper-control {
   grid-area: capper;
+}
+
+.section-deep-link {
+  grid-area: detail;
 }
 
 .section-fans {
@@ -106,6 +116,37 @@ h2 {
   border-radius: 999px;
   padding: 0.35rem 0.7rem;
   background: #101e32;
+  white-space: nowrap;
+}
+
+.header-copy {
+  max-width: 760px;
+  margin: 0.45rem 0 0;
+  color: #b7c4d8;
+  line-height: 1.45;
+}
+
+.product-lenses {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.lens-card {
+  border: 1px solid #3b4b37;
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: linear-gradient(170deg, rgba(24, 39, 31, 0.94), rgba(15, 26, 35, 0.94));
+}
+
+.lens-card strong {
+  color: #dcfce7;
+}
+
+.lens-card p {
+  margin: 0.45rem 0 0;
+  color: #b5c7bd;
+  line-height: 1.4;
 }
 
 .metrics-grid {
@@ -191,16 +232,49 @@ button:disabled {
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
 }
 
+.capper-profile-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.85rem;
+}
+
+.capper-profile-strip span {
+  border: 1px solid #4b5563;
+  border-radius: 999px;
+  padding: 0.35rem 0.6rem;
+  color: #e7e5e4;
+  background: #1c1917;
+  font-size: 0.82rem;
+}
+
+.workflow-button {
+  display: grid;
+  gap: 0.25rem;
+  align-content: center;
+  text-align: left;
+}
+
+.workflow-button span {
+  font-weight: 800;
+}
+
+.workflow-button small {
+  color: #dbeafe;
+  line-height: 1.25;
+}
+
 .fans-grid {
   display: grid;
   gap: 0.8rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
 }
 
 .fan-card {
   border: 1px solid #304566;
   border-radius: 10px;
-  padding: 0.8rem;
+  padding: 1rem;
   background: rgba(8, 17, 32, 0.7);
 }
 
@@ -217,6 +291,7 @@ button:disabled {
   border-radius: 999px;
   width: 1.35rem;
   height: 1.35rem;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -231,6 +306,8 @@ button:disabled {
   border-radius: 999px;
   display: inline-flex;
   margin-top: 0.5rem;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .dot.online {
@@ -256,7 +333,7 @@ button:disabled {
   border: 1px solid #2c466f;
   border-radius: 8px;
   background: #0f1a2d;
-  padding: 0.45rem;
+  padding: 0.75rem;
   animation: none;
 }
 
@@ -273,11 +350,30 @@ button:disabled {
   gap: 0.5rem;
 }
 
+.inbox-title-row {
+  align-items: flex-start;
+}
+
+.inbox-title-row strong {
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+
 .pick-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   border-radius: 999px;
-  padding: 0.15rem 0.45rem;
-  font-size: 0.68rem;
+  padding: 0.22rem 0.55rem;
+  min-width: 56px;
+  font-size: 0.66rem;
+  line-height: 1;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
   color: #dbeafe;
   background: #243b63;
 }
@@ -301,8 +397,8 @@ button:disabled {
 .pick-slip {
   border: 1px solid #284668;
   border-radius: 8px;
-  padding: 0.45rem;
-  margin: 0.45rem 0;
+  padding: 0.65rem;
+  margin: 0.55rem 0;
   background: rgba(15, 32, 54, 0.88);
 }
 
@@ -324,11 +420,32 @@ button:disabled {
   color: #c7d2fe;
   font-size: 0.76rem;
   text-align: center;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .outcome {
   color: #bbf7d0;
+}
+
+.trust-panel {
+  display: grid;
+  gap: 0.25rem;
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+  margin: 0.6rem 0;
+  background: rgba(59, 47, 19, 0.55);
+}
+
+.trust-panel span {
+  color: #fde68a;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.detail-trust-panel {
+  max-width: 620px;
 }
 
 .inbox-actions {
@@ -339,17 +456,59 @@ button:disabled {
 .inbox-actions a {
   min-height: 36px;
   border-radius: 7px;
-  padding: 0.4rem 0.65rem;
+  padding: 0.45rem 0.8rem;
   font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .inbox-actions a {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   color: #bfdbfe;
   text-decoration: none;
   border: 1px solid #385781;
   background: #0b1626;
+}
+
+.notification-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.notification-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  background: #081426;
+  color: #aebfda;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.detail-body {
+  margin-top: 0.85rem;
+}
+
+.detail-body p {
+  margin: 0.35rem 0;
+}
+
+.detail-pick-slip {
+  max-width: 520px;
 }
 
 .secondary-action {
@@ -450,6 +609,10 @@ th {
 }
 
 @media (max-width: 800px) {
+  :root {
+    font-size: 15px;
+  }
+
   .header-card {
     flex-direction: column;
   }
@@ -471,6 +634,10 @@ th {
 
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .product-lenses {
+    grid-template-columns: 1fr;
   }
 
   .metric-card p {
@@ -498,7 +665,7 @@ th {
   }
 
   .button-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .button-grid button {
@@ -507,28 +674,16 @@ th {
   }
 
   .fans-grid {
-    display: flex;
+    display: grid;
     gap: 0.75rem;
-    overflow-x: auto;
-    padding-bottom: 0.4rem;
-    scroll-snap-type: x mandatory;
-    -ms-overflow-style: auto;
-    scrollbar-width: thin;
-  }
-
-  .fans-grid::-webkit-scrollbar {
-    height: 7px;
-  }
-
-  .fans-grid::-webkit-scrollbar-thumb {
-    background: #2d4566;
-    border-radius: 999px;
+    grid-template-columns: 1fr;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .fan-card {
-    min-width: 260px;
-    flex: 0 0 auto;
-    scroll-snap-align: start;
+    width: 100%;
+    min-width: 0;
   }
 
   .desktop-visible {
@@ -570,11 +725,112 @@ th {
   }
 }
 
+@media (max-width: 640px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 72px;
+  }
+
+  .capper-profile-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .capper-profile-strip span {
+    border-radius: 8px;
+    line-height: 1.25;
+  }
+
+  .fan-card header h3 {
+    font-size: 1.08rem;
+  }
+
+  .inbox-title-row strong {
+    font-size: 0.98rem;
+  }
+
+  .trust-panel span {
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding: 0.65rem;
+  }
+
+  .product-lenses,
+  .metrics-grid,
+  .button-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header-card,
+  .metric-card,
+  .card,
+  .fan-card {
+    border-radius: 10px;
+    padding: 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.35rem;
+  }
+
+  h2 {
+    font-size: 1.18rem;
+  }
+
+  .capper-profile-strip span,
+  .status-pill,
+  .notification-meta span {
+    white-space: normal;
+  }
+
+  .pick-slip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pick-slip-grid span {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .inbox-title-row {
+    gap: 0.65rem;
+  }
+
+  .inbox-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inbox-actions button,
+  .inbox-actions a {
+    flex: 1;
+  }
+
+  .detail-header {
+    flex-direction: column;
+  }
+
+  .detail-header button {
+    width: 100%;
+  }
+}
+
 @media (min-width: 801px) {
   .app-shell {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "header header"
+      "lenses lenses"
+      "detail detail"
       "metrics metrics"
       "capper architecture"
       "fans fans"

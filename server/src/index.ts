@@ -10,10 +10,16 @@ type CapperAction =
   | 'reward_unlocked'
   | 'live_capper_note'
 
+type AudienceSegment = 'all_followers' | 'premium_subscribers' | 'high_intent_fans' | 'at_risk_fans'
+type DeliveryChannel = 'in_app' | 'push' | 'email' | 'discord'
+type BusinessGoal = 'time_sensitive_pick' | 'retention' | 'conversion' | 'trust' | 'reward'
+
 interface Capper {
   id: string
   name: string
   role: string
+  record: string
+  specialty: string
 }
 
 interface FanSeed {
@@ -35,6 +41,12 @@ interface FanNotificationPayload {
   result?: string
   reward?: string
   deep_link?: string
+  trust_context?: {
+    capper_record?: string
+    pick_lifecycle?: string
+    result_ledger?: string
+    responsible_note?: string
+  }
 }
 
 interface CapperEvent {
@@ -47,11 +59,21 @@ interface CapperEvent {
   sent_at: string
   delivered_at: string | null
   latency_ms: number | null
+  audience_segment: AudienceSegment
+  delivery_channels: DeliveryChannel[]
+  business_goal: BusinessGoal
+  idempotency_key?: string
 }
 
 interface EventLogEntry extends CapperEvent {
-  recipient_count: number
+  follower_count: number
+  online_fan_count: number
+  online_session_count: number
+  offline_fan_count: number
   delivered_count: number
+  pending_count: number
+  replayed_count: number
+  duplicate_ack_count: number
 }
 
 interface ClientMetrics {
@@ -61,6 +83,12 @@ interface ClientMetrics {
   average_latency_ms: number
   p95_latency_ms: number
   last_event_type: string
+  follower_targets: number
+  online_fan_targets: number
+  online_sessions_targeted: number
+  offline_pending: number
+  replayed_deliveries: number
+  duplicate_acks_ignored: number
   last_updated_at: string
 }
 
@@ -82,10 +110,23 @@ const PORT = Number(process.env.PORT ?? 4000)
 const HEARTBEAT_INTERVAL_MS = 10_000
 const MAX_EVENT_LOG = 150
 const MAX_LATENCY_SAMPLES = 400
+const MAX_REQUEST_BYTES = 32_000
 
 const CAPPERS: Capper[] = [
-  { id: 'capper-sharpside-sam', name: 'SharpSide Sam', role: 'MLB / NBA Cappers' },
-  { id: 'capper-courtside-kelly', name: 'Courtside Kelly', role: 'Live NBA + CFB Cappers' }
+  {
+    id: 'capper-sharpside-sam',
+    name: 'SharpSide Sam',
+    role: 'MLB / NBA Cappers',
+    record: '62% last 180 tracked picks',
+    specialty: 'Line movement and closing-line value'
+  },
+  {
+    id: 'capper-courtside-kelly',
+    name: 'Courtside Kelly',
+    role: 'Live NBA + CFB Cappers',
+    record: '+18.4u last 90 days',
+    specialty: 'Live-game notes and player props'
+  }
 ]
 
 const CAPPERS_BY_ID = new Map(CAPPERS.map((capper) => [capper.id, capper]))
@@ -113,12 +154,15 @@ const controlConnections = new Set<WebSocket>()
 const connectionState = new Map<WebSocket, ClientConnection>()
 const pendingAcks = new Map<string, Map<string, number>>()
 const acknowledgedAcks = new Map<string, Set<string>>()
+const idempotencyKeys = new Map<string, EventLogEntry>()
 
 const eventLog: EventLogEntry[] = []
 const latencySamples: number[] = []
 
 let notificationsSent = 0
 let notificationsDelivered = 0
+let replayedDeliveries = 0
+let duplicateAcksIgnored = 0
 
 const server = createServer(async (request: IncomingMessage, response: ServerResponse) => {
   const origin = request.headers.origin
@@ -157,17 +201,22 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
     let body: Record<string, unknown>
     try {
       body = await readRequestBody(request)
-    } catch {
-      response.writeHead(400, { 'Content-Type': 'application/json' })
-      response.end(JSON.stringify({ error: 'Invalid JSON payload.' }))
+    } catch (error) {
+      const status = error instanceof Error && error.message === 'payload-too-large' ? 413 : 400
+      response.writeHead(status, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: status === 413 ? 'Payload too large.' : 'Invalid JSON payload.' }))
       return
     }
 
-    const { type, capper_id, payload } = body as {
+    const { type, capper_id, payload, idempotency_key } = body as {
       type: CapperAction
       capper_id: string
       payload: FanNotificationPayload
+      idempotency_key?: string
     }
+    const audienceSegment = normalizeAudienceSegment(body.audience_segment)
+    const deliveryChannels = normalizeDeliveryChannels(body.delivery_channels)
+    const businessGoal = normalizeBusinessGoal(body.business_goal, type)
 
     if (!isValidAction(type) || !capper_id || !payload?.title || !payload?.body) {
       response.writeHead(400, { 'Content-Type': 'application/json' })
@@ -182,7 +231,24 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
       return
     }
 
-    const event = createAndBroadcastEvent(capper, payload, type)
+    const normalizedIdempotencyKey =
+      typeof idempotency_key === 'string' && idempotency_key.trim() ? idempotency_key.trim().slice(0, 120) : undefined
+
+    if (normalizedIdempotencyKey) {
+      const existing = idempotencyKeys.get(`${capper.id}:${normalizedIdempotencyKey}`)
+      if (existing) {
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ ok: true, event: existing, idempotent_replay: true }))
+        return
+      }
+    }
+
+    const event = createAndBroadcastEvent(capper, payload, type, {
+      audience_segment: audienceSegment,
+      delivery_channels: deliveryChannels,
+      business_goal: businessGoal,
+      idempotency_key: normalizedIdempotencyKey
+    })
     response.writeHead(200, { 'Content-Type': 'application/json' })
     response.end(JSON.stringify({ ok: true, event }))
     return
@@ -274,7 +340,17 @@ wss.on('connection', (socket: WebSocket) => {
         if (context.role !== 'fan' || !context.fan_id) return
         const next = message.followed_cappers
         if (Array.isArray(next)) {
-          FAN_FOLLOWS.set(context.fan_id, new Set(next.map((value) => String(value))))
+          const requestedCappers = next.map((value) => String(value))
+          const unknownCappers = requestedCappers.filter((capperId) => !CAPPERS_BY_ID.has(capperId))
+          if (unknownCappers.length > 0) {
+            send(socket, {
+              type: 'error',
+              message: `Unknown capper id(s): ${unknownCappers.join(', ')}`
+            })
+            return
+          }
+
+          FAN_FOLLOWS.set(context.fan_id, new Set(requestedCappers))
           send(socket, {
             type: 'follow_updated',
             fan_id: context.fan_id,
@@ -289,6 +365,12 @@ wss.on('connection', (socket: WebSocket) => {
         const fanId = context.fan_id
         const eventId = String(message.event_id)
         if (isEventAlreadyAcknowledged(eventId, fanId)) {
+          duplicateAcksIgnored += 1
+          const logIndex = eventLog.findIndex((entry) => entry.event_id === eventId)
+          if (logIndex >= 0) {
+            eventLog[logIndex].duplicate_ack_count += 1
+          }
+          broadcastMetrics()
           return
         }
 
@@ -308,6 +390,7 @@ wss.on('connection', (socket: WebSocket) => {
         const logIndex = eventLog.findIndex((entry) => entry.event_id === eventId)
         if (logIndex >= 0) {
           eventLog[logIndex].delivered_count += 1
+          eventLog[logIndex].pending_count = Math.max(0, eventLog[logIndex].pending_count - 1)
           if (!eventLog[logIndex].delivered_at) {
             eventLog[logIndex].delivered_at = new Date(now).toISOString()
           }
@@ -377,7 +460,13 @@ setInterval(() => {
 function createAndBroadcastEvent(
   capper: Capper,
   payload: FanNotificationPayload,
-  type: CapperAction
+  type: CapperAction,
+  options: {
+    audience_segment: AudienceSegment
+    delivery_channels: DeliveryChannel[]
+    business_goal: BusinessGoal
+    idempotency_key?: string
+  }
 ): EventLogEntry {
   const now = new Date().toISOString()
   const event: CapperEvent = {
@@ -389,15 +478,19 @@ function createAndBroadcastEvent(
     created_at: now,
     sent_at: now,
     delivered_at: null,
-    latency_ms: null
+    latency_ms: null,
+    audience_segment: options.audience_segment,
+    delivery_channels: options.delivery_channels,
+    business_goal: options.business_goal,
+    idempotency_key: options.idempotency_key
   }
 
   const followers = FANS.filter((fan) => (FAN_FOLLOWS.get(fan.id) ?? new Set()).has(capper.id)).map(
     (fan) => fan.id
   )
   const recipients = followers.filter((fanId) => (fanConnections.get(fanId)?.size ?? 0) > 0)
+  const onlineSessionCount = recipients.reduce((total, fanId) => total + (fanConnections.get(fanId)?.size ?? 0), 0)
 
-  let sentCount = 0
   const pendingForEvent = new Map<string, number>()
   const alreadyAcked = acknowledgedAcks.get(event.event_id)
 
@@ -411,17 +504,22 @@ function createAndBroadcastEvent(
 
     for (const socket of sockets) {
       sendCapperEvent(socket, event)
-      sentCount += 1
     }
     pendingForEvent.set(fanId, Date.now())
   }
 
-  notificationsSent += sentCount
+  notificationsSent += pendingForEvent.size
 
   const logEntry: EventLogEntry = {
     ...event,
-    recipient_count: followers.length,
-    delivered_count: 0
+    follower_count: followers.length,
+    online_fan_count: recipients.length,
+    online_session_count: onlineSessionCount,
+    offline_fan_count: Math.max(0, followers.length - recipients.length),
+    delivered_count: 0,
+    pending_count: pendingForEvent.size,
+    replayed_count: 0,
+    duplicate_ack_count: 0
   }
 
   if (pendingForEvent.size > 0) {
@@ -438,6 +536,15 @@ function createAndBroadcastEvent(
     if (removed) {
       pendingAcks.delete(removed.event_id)
       acknowledgedAcks.delete(removed.event_id)
+    }
+  }
+
+  if (options.idempotency_key) {
+    idempotencyKeys.set(`${capper.id}:${options.idempotency_key}`, logEntry)
+    while (idempotencyKeys.size > MAX_EVENT_LOG) {
+      const oldestKey = idempotencyKeys.keys().next().value as string | undefined
+      if (!oldestKey) break
+      idempotencyKeys.delete(oldestKey)
     }
   }
 
@@ -481,11 +588,20 @@ function replayMissedEventsForFan(fanId: string, socket: WebSocket, lastSeenEven
   for (const event of eventsForFan) {
     sendCapperEvent(socket, event, { replayed: true })
     const existing = pendingAcks.get(event.event_id)
+    const wasAlreadyPending = existing?.has(fanId) ?? false
     if (existing) {
       existing.set(fanId, Date.now())
     } else {
       pendingAcks.set(event.event_id, new Map([[fanId, Date.now()]]))
     }
+    const logIndex = eventLog.findIndex((entry) => entry.event_id === event.event_id)
+    if (logIndex >= 0) {
+      eventLog[logIndex].replayed_count += 1
+      if (!wasAlreadyPending) {
+        eventLog[logIndex].pending_count += 1
+      }
+    }
+    replayedDeliveries += 1
   }
 
   if (truncated) {
@@ -529,14 +645,23 @@ function getMetricsSnapshot(): ClientMetrics {
   const p95Index = Math.floor((cleanLatencies.length - 1) * 0.95)
   const p95 = cleanLatencies.length === 0 ? 0 : cleanLatencies[Math.max(p95Index, 0)]
   const hasEvent = eventLog[0]
+  const activeConnections =
+    Array.from(fanConnections.values()).reduce((total, sockets) => total + sockets.size, 0) + controlConnections.size
+  const recentEvents = eventLog.slice(0, 50)
 
   return {
-    active_connections: Array.from(fanConnections.values()).reduce((total, sockets) => total + sockets.size, 0) + controlConnections.size,
+    active_connections: activeConnections,
     notifications_sent: notificationsSent,
     notifications_delivered: notificationsDelivered,
     average_latency_ms: averageLatency,
     p95_latency_ms: p95,
     last_event_type: hasEvent ? hasEvent.type : 'none',
+    follower_targets: recentEvents.reduce((total, entry) => total + entry.follower_count, 0),
+    online_fan_targets: recentEvents.reduce((total, entry) => total + entry.online_fan_count, 0),
+    online_sessions_targeted: recentEvents.reduce((total, entry) => total + entry.online_session_count, 0),
+    offline_pending: recentEvents.reduce((total, entry) => total + entry.offline_fan_count, 0),
+    replayed_deliveries: replayedDeliveries,
+    duplicate_acks_ignored: duplicateAcksIgnored,
     last_updated_at: new Date().toISOString()
   }
 }
@@ -585,11 +710,52 @@ function isValidAction(value: string): value is CapperAction {
   ].includes(value)
 }
 
+function normalizeAudienceSegment(value: unknown): AudienceSegment {
+  const allowed: AudienceSegment[] = ['all_followers', 'premium_subscribers', 'high_intent_fans', 'at_risk_fans']
+  return typeof value === 'string' && allowed.includes(value as AudienceSegment)
+    ? (value as AudienceSegment)
+    : 'all_followers'
+}
+
+function normalizeDeliveryChannels(value: unknown): DeliveryChannel[] {
+  const allowed = new Set<DeliveryChannel>(['in_app', 'push', 'email', 'discord'])
+  if (!Array.isArray(value)) {
+    return ['in_app', 'push']
+  }
+
+  const channels = value
+    .map((entry) => String(entry))
+    .filter((entry): entry is DeliveryChannel => allowed.has(entry as DeliveryChannel))
+
+  return channels.length > 0 ? Array.from(new Set(channels)) : ['in_app', 'push']
+}
+
+function normalizeBusinessGoal(value: unknown, action: CapperAction): BusinessGoal {
+  const allowed: BusinessGoal[] = ['time_sensitive_pick', 'retention', 'conversion', 'trust', 'reward']
+  if (typeof value === 'string' && allowed.includes(value as BusinessGoal)) {
+    return value as BusinessGoal
+  }
+
+  const defaults: Record<CapperAction, BusinessGoal> = {
+    new_pick: 'time_sensitive_pick',
+    odds_moved: 'time_sensitive_pick',
+    game_starting_soon: 'retention',
+    result_posted: 'trust',
+    reward_unlocked: 'reward',
+    live_capper_note: 'retention'
+  }
+  return defaults[action]
+}
+
 function readRequestBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let data = ''
     req.on('data', (chunk: Buffer) => {
       data += chunk
+      if (Buffer.byteLength(data, 'utf8') > MAX_REQUEST_BYTES) {
+        reject(new Error('payload-too-large'))
+        req.destroy()
+      }
     })
     req.on('end', () => {
       if (!data) {
