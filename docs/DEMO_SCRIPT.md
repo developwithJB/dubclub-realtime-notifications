@@ -1,8 +1,8 @@
-# DubClub Realtime Notifications - 90-Second Loom Script
+# DubClub Capper-Fan Realtime Demo - 90-Second Loom Script
 
 ## 0:00 - What this is
 
-Hi, this is a DubClub-specific realtime operations cockpit. It shows how capper moments move from creator workflow to fan trust inbox in real time, with end-to-end observability.
+Hi, this is a DubClub-specific realtime capper-fan demo. It shows how capper moments move from creator workflow to fan trust inbox in real time, with end-to-end observability.
 
 ## 0:10 - Why this is specific to a sports capper platform
 
@@ -15,11 +15,11 @@ This is not a generic chat app. It models a capper-driven content flow:
 - trust context and responsible-play copy
 Fans only receive what they actually follow, which is core to creator loyalty and noise control.
 
-## 0:25 - Show Capper Control Room
+## 0:25 - Show Capper Operating System
 
-I open the dashboard and point to the Capper Control Room.
+I open the dashboard and point to the Capper Operating System.
 - Two seeded cappers are available: SharpSide Sam and Courtside Kelly.
-- The control room has action buttons for all event types used in the challenge.
+- The operating system has action buttons for all event types used in the challenge.
 - Each event carries audience segment, channel intent, urgency, and business outcome.
 
 ## 0:40 - Trigger "Post New Pick"

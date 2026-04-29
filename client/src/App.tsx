@@ -431,10 +431,10 @@ function App() {
     <main className="app-shell">
       <header className="dashboard-section section-header header-card">
         <div>
-          <p className="eyebrow">Staff CTO/Product Demo</p>
-          <h1>DubClub Realtime Ops Cockpit</h1>
+          <p className="eyebrow">Staff Software Engineer Demo</p>
+          <h1>DubClub Capper-Fan Realtime Demo</h1>
           <p className="header-copy">
-            A product-specific control room for cappers, fans, and delivery health: built to show
+            A product-specific flow for cappers, fans, and delivery health: built to show
             how DubClub can Win More Together with trust, speed, and operational clarity.
           </p>
         </div>
@@ -509,7 +509,7 @@ function App() {
       </section>
 
       <section className="dashboard-section section-capper-control card">
-        <h2>Capper Control Room</h2>
+        <h2>Capper Operating System</h2>
         <p>
           Publish targeted product moments with audience, channel, urgency, and business intent
           attached to every event.

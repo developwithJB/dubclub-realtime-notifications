@@ -3,7 +3,7 @@
 Add real screenshots after your next recording pass. Use these section labels and filenames consistently.
 
 - `docs/assets/capper-control-room.png`
-  - Capper Control Room with active capper selected and action buttons visible
+  - Capper Operating System with active capper selected and action buttons visible
   - Shows this is the source of fan pushes
 
 - `docs/assets/fan-delivery-view.png`
@@ -19,4 +19,4 @@ Add real screenshots after your next recording pass. Use these section labels an
   - Keep headers and summary block visible, especially p95/p99 and total messages
 
 You can add markdown entries later in the README in this format:
-- `![capper control room](./assets/capper-control-room.png)`
+- `![capper operating system](./assets/capper-control-room.png)`
