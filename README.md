@@ -1,6 +1,6 @@
-# DubClub Realtime Ops Cockpit
+# DubClub Capper-Fan Realtime Demo
 
-Staff-level full-stack + React Native submission for DubClub's sports creator platform.
+Staff Software Engineer (Full-Stack) submission for DubClub's sports creator platform.
 
 [![CI](https://github.com/developwithJB/dubclub-realtime-notifications/actions/workflows/ci.yml/badge.svg)](https://github.com/developwithJB/dubclub-realtime-notifications/actions/workflows/ci.yml)
 
@@ -10,7 +10,7 @@ If you only have a few minutes:
 
 1. Run `npm install && npm run dev`.
 2. Open `http://localhost:5173`.
-3. In **Capper Control Room**, click `Post New Pick` or `Odds Moved`.
+3. In **Capper Operating System**, click `Post New Pick` or `Odds Moved`.
 4. Confirm only the fans who follow that capper receive the notification.
 5. Click `Tail Pick` and `Open` on a fan notification.
 6. Watch the metrics update: follower targets, online fan targets, sessions, delivered fans, replay, duplicate acks, offline pending, average latency, and p95.
@@ -35,14 +35,26 @@ The mobile prototype is intentionally fan-facing: alerts, ledger, tailing, rewar
 - MVP reliability primitives are in place: heartbeat, replay window, multi-session fan sockets, publish idempotency, request-size protection, and idempotent acknowledgement handling.
 - Notifications carry DubClub-specific trust context: capper record, pick lifecycle, result ledger hints, reward context, and responsible-play copy.
 
-## Why this should feel specific to DubClub
+## Why this is specific to DubClub's role
 
-The assignment is not just a realtime transport problem. DubClub's product problem is that sports betting content is fragmented, trust is fragile, and fans need a smoother way to tail cappers while cappers need a business-building operating system. This repo reflects that:
+The attached job description frames DubClub's product problem clearly: sports betting content is fragmented, trust is fragile, and fans need a smoother way to tail cappers while cappers need a business-building operating system. This repo reflects that:
 
 - **Capper OS:** publish urgent picks, odds movement, results, rewards, and live notes with audience, channel, urgency, and business-goal metadata.
 - **Fan trust loop:** keep record context, pick lifecycle, result ledger, rewards, and responsible-play copy next to the fan's decision.
 - **Delivery health:** show whether the business audience, live socket path, replay path, and idempotency path are actually working.
 - **Mobile-first product thinking:** the Expo prototype is a fan inbox and ledger, not a dashboard squeezed onto a phone.
+- **Staff IC execution:** the code and docs show end-to-end ownership, technical judgment, speed with maintainability, and a path from local MVP to production scale.
+
+## Role description alignment
+
+This is rooted in the attached **Staff Software Engineer (Full-Stack)** job description:
+
+- **Senior IC ownership:** the repo includes working product code, backend fanout logic, React web UI, React Native mobile prototype, validation scripts, Docker/CI artifacts, and production architecture notes.
+- **Founders and GTM partnership:** the demo is framed around user value and roadmap tradeoffs, not only infrastructure; it shows how capper moments become fan actions, retention loops, trust context, and rewards.
+- **Mobile and web product features:** the web app demonstrates the capper/fan realtime loop, while `mobile/` demonstrates a focused ReactNative-style fan inbox with alerts, ledger, tailing, reconnect cursor, and deep links.
+- **Speed, scope, and maintainability:** the implementation stays intentionally local and inspectable, while documenting the production path to Django/Go APIs, PostgreSQL delivery records, Redis presence/follower indexes, and push fallback.
+- **AI-first engineering:** the docs call out agent-assisted iteration as a workflow advantage while keeping validation concrete through typecheck, build, smoke, and load scripts.
+- **Sports betting context:** the product copy and data model use cappers, odds movement, picks, results, rewards, tailing, and trust/ledger context because those are the workflows DubClub describes.
 
 ## How to run
 
@@ -56,7 +68,7 @@ The assignment is not just a realtime transport problem. DubClub's product probl
 `npm run dev` starts two local processes:
 
 - `server/` on `http://localhost:4000`, which owns the WebSocket fanout, HTTP event API, seeded cappers/fans, metrics, acknowledgements, and in-memory event log.
-- `client/` on `http://localhost:5173`, which renders the control room dashboard and six simulated fan clients.
+- `client/` on `http://localhost:5173`, which renders the capper-fan demo and six simulated fan clients.
 
 ## Why this project exists
 
@@ -73,7 +85,7 @@ The repository includes working code plus the design story so a reviewer can eva
 
 ## Staff Engineer Readout
 
-This submission intentionally treats the assignment as a product architecture problem, not just a WebSocket exercise.
+This submission intentionally treats the assignment as a Staff Software Engineer product architecture problem, not just a WebSocket exercise.
 
 - **Product insight:** DubClub's hard problem is reducing fragmented, low-trust capper workflows into a unified fan and creator loop. The app models cappers publishing time-sensitive picks, odds movement, results, rewards, and live notes while fans can tail, inspect trust context, and open deep links.
 - **Architecture tradeoff:** the MVP stays local and in-memory so it is fast to review, but it preserves the right seams: event API, fanout gateway, follow index, replay buffer, idempotency, acknowledgement metrics, and mobile push/deep-link path.
@@ -97,7 +109,7 @@ The load scripts count only event IDs published during the current run, so repla
 
 ## What you are seeing on screen
 
-The web app is a single-page realtime operations cockpit. It shows the capper-side control room, product lenses, a live fan inbox simulation, delivery metrics, trust context, and notification/event logs in one view.
+The web app is a single-page realtime capper-fan demo. It shows the capper-side operating system, product lenses, a live fan inbox simulation, delivery metrics, trust context, and notification/event logs in one view.
 
 ### Header
 
@@ -107,7 +119,7 @@ The top of the screen shows the demo name, server status, and the latest metrics
 
 The metric cards summarize current realtime health:
 
-- `Active connections`: the control room socket plus the active simulated fan sockets.
+- `Active connections`: the control stream socket plus the active simulated fan sockets.
 - `Follower targets`: recent intended audience size by follow graph.
 - `Online fan targets` and `Online sessions`: unique live fans versus active devices/sessions.
 - `Unique sends` and `Unique delivered`: fan-level delivery attempts and acknowledgements.
@@ -115,7 +127,7 @@ The metric cards summarize current realtime health:
 - `Average latency` and `P95 latency`: acknowledgement latency from send to fan ack.
 - `Last event type`: the latest capper action sent.
 
-### Capper Control Room
+### Capper Operating System
 
 This section is the sender side of the product. Choose an active capper, then click one of the action buttons:
 
@@ -166,7 +178,7 @@ For a successful SharpSide Sam event, expect three follower fans and three onlin
 
 ### Architecture Summary
 
-This section restates the local architecture in product terms: React control room, Node + `ws` backend, in-memory fan presence/follow state, publish idempotency, capper action fanout, fan acknowledgements, metrics, and event logging.
+This section restates the local architecture in product terms: React product demo, Node + `ws` backend, in-memory fan presence/follow state, publish idempotency, capper action fanout, fan acknowledgements, metrics, and event logging.
 
 ### Notification Event Log
 
@@ -180,7 +192,7 @@ The event log gives a longer audit-style list of notifications with full event i
 4. Clicking a capper action posts an event to `POST /api/events`.
 5. The server validates known capper IDs, applies the event metadata, computes recipients from the fan follow graph, and sends `capper_event` messages only to matching connected fans.
 6. Fan clients render the inbox item and send an `ack` back to the server.
-7. The server records delivery, latency, and acknowledgement state, then broadcasts updated metrics and event logs to the control room.
+7. The server records delivery, latency, and acknowledgement state, then broadcasts updated metrics and event logs to the product demo.
 8. Deep links are handled client-side with `history.pushState`, so opening a pick/reward detail does not reset inbox or tail-pick state.
 
 ## Role alignment
@@ -192,10 +204,10 @@ DubClub's production stack is Django/Go, PostgreSQL, TypeScript/Svelte, React Na
 ```mermaid
 flowchart LR
   subgraph Local MVP
-    A[Capper Control Room UI] -->|POST /api/events| B[Node server]
+    A[Capper Operating System UI] -->|POST /api/events| B[Node server]
     B --> C[In-memory capper/fan state]
     B -->|fanout capper_event| D[Fan WebSocket Clients]
-    B -->|control_stream| E[Control Room metrics panel]
+    B -->|control_stream| E[Product metrics panel]
     B --> F[In-memory replay buffer]
     E --> G[Event log + metrics UI]
   end
@@ -224,7 +236,7 @@ flowchart LR
 
 - Two seeded cappers: SharpSide Sam, Courtside Kelly
 - Six seeded fans with different follow combinations
-- Capper Control Room, product lenses, simulated fan clients, tail-pick action, live event stream, and metrics
+- Capper Operating System, product lenses, simulated fan clients, tail-pick action, live event stream, and metrics
 - Lightweight trust layer with capper record, pick lifecycle, result ledger, reward, and responsible-play context
 - Replay on reconnect with event id cursor and dedupe on acknowledgements
 - Publish idempotency, request-size cap, and known capper/follow validation

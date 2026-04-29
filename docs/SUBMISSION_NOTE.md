@@ -3,7 +3,7 @@
 I built this as a working system-design artifact rather than only a diagram because this challenge is about proof, not opinions.
 
 The repo demonstrates a real capper-to-fan notification path end to end:
-- capper actions are created in a control room
+- capper actions are created in a capper operating system
 - events carry audience segment, delivery channels, business goal, idempotency, and trust context
 - events are fan-targeted by follow graph
 - WebSocket clients receive updates in real time

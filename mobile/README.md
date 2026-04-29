@@ -1,6 +1,6 @@
 # DubClub Mobile Prototype
 
-This is a focused Expo/React Native slice for the Staff Full Stack React Native submission. It is designed as a mobile-first fan surface rather than a web dashboard squeezed onto a phone.
+This is a focused Expo/React Native slice for the Staff Software Engineer (Full-Stack) submission. It is designed as a mobile-first fan surface rather than a web dashboard squeezed onto a phone.
 
 It shows the fan-side product loop DubClub cares about:
 
